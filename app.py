@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import traceback # Importar para un mejor log de errores
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -449,32 +450,42 @@ def update_user_permissions(user_id):
 @app.route('/api/logistica/datos')
 @login_required
 def get_logistica_data():
-    requested_channel = request.args.get('canal')
+    # --- INICIO: Bloque de manejo de errores para la sincronización ---
+    try:
+        requested_channel = request.args.get('canal')
 
-    # Determinar los canales disponibles para el usuario
-    if current_user.rol == 'super':
-        channels_for_user = [c.name for c in Channel.query.order_by(Channel.name).all()]
-    else:
-        channels_for_user = [c.name for c in current_user.allowed_channels]
+        # Determinar los canales disponibles para el usuario
+        if current_user.rol == 'super':
+            channels_for_user = [c.name for c in Channel.query.order_by(Channel.name).all()]
+        else:
+            channels_for_user = [c.name for c in current_user.allowed_channels]
 
-    # Si el usuario no tiene canales, devolver una respuesta vacía
-    if not channels_for_user:
-        return jsonify({"data": [], "channels": [], "loaded_channel": None})
+        # Si el usuario no tiene canales, devolver una respuesta vacía
+        if not channels_for_user and current_user.rol != 'super':
+            return jsonify({"data": [], "channels": [], "loaded_channel": None})
 
-    # Determinar qué canal cargar
-    if requested_channel and (requested_channel in channels_for_user or requested_channel == 'ALL' and current_user.rol == 'super'):
-        channel_to_load = requested_channel
-    elif current_user.rol == 'super':
-        channel_to_load = 'ALL'  # El superusuario ve todo por defecto
-    else:
-        channel_to_load = channels_for_user[0]  # El usuario normal ve su primer canal asignado
+        # Determinar qué canal cargar
+        if requested_channel and (requested_channel in channels_for_user or (requested_channel == 'ALL' and current_user.rol == 'super')):
+            channel_to_load = requested_channel
+        elif current_user.rol == 'super':
+            channel_to_load = 'ALL'
+        else:
+            channel_to_load = channels_for_user[0]
 
-    df_filtrado, _ = sincronizar_y_obtener_datos_completos(channel_to_load)
-    return jsonify({
-        "data": df_filtrado.to_dict('records'),
-        "channels": channels_for_user,
-        "loaded_channel": channel_to_load
-    })
+        df_filtrado, _ = sincronizar_y_obtener_datos_completos(channel_to_load)
+        
+        return jsonify({
+            "data": df_filtrado.to_dict('records'),
+            "channels": channels_for_user,
+            "loaded_channel": channel_to_load
+        })
+    except Exception as e:
+        # Imprime el error detallado en los logs del servidor (visible en Render)
+        print(f"ERROR CRÍTICO al sincronizar con SharePoint: {e}", flush=True)
+        traceback.print_exc()
+        # Devuelve una respuesta de error al frontend
+        return jsonify({"error": "No se pudo sincronizar con la fuente de datos (SharePoint). Revise los logs del servidor para más detalles."}), 500
+    # --- FIN: Bloque de manejo de errores ---
 
 @app.route('/api/channels')
 @login_required
@@ -696,4 +707,4 @@ initialize_database()
 # --- INICIO DE LA APLICACIÓN ---
 if __name__ == '__main__':
     # Este bloque solo se ejecuta en desarrollo local
-    app.run(debug=True, port=50)
+    app.run(debug=True, port=5001)
