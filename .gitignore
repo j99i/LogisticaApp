@@ -8,6 +8,8 @@ venv/
 # Caché de Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
 # Archivos de sesión de Flask
 .flask_session/
@@ -15,3 +17,11 @@ __pycache__/
 # Carpeta de datos (la gestionará el disco de Render)
 /data/
 
+# Archivos de compilación
+build/
+dist/
+*.egg-info/
+
+# Archivos de prueba
+.pytest_cache/
+.tox/
