@@ -87,7 +87,6 @@ def save_portales_data(data):
         json.dump(data, f, indent=4, ensure_ascii=False)
 
 # --- 2. MODELOS DE BASE DE DATOS ---
-# (El código de los modelos no cambia, se omite por brevedad)
 user_permissions = db.Table('user_permissions',
     db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
     db.Column('permission_id', db.Integer, db.ForeignKey('permission.id'), primary_key=True)
@@ -167,7 +166,6 @@ class HistorialOrden(db.Model):
         return data
 
 # --- COMANDOS DE TERMINAL ---
-# (El código de los comandos no cambia, se omite por brevedad)
 @app.cli.command('create-db')
 def create_db_command():
     with app.app_context():
@@ -209,7 +207,6 @@ def assign_role_command(email, role):
         print(f"✅ Rol '{role}' asignado exitosamente a {email}.")
 
 # --- RUTAS Y LÓGICA DE LA APLICACIÓN ---
-# (El resto del código de la aplicación no cambia, se omite por brevedad)
 TAREAS_POR_CLIENTE = {
     "WALMART": ["Enviar confirmación de cita", "Subir templates", "Preguntar status en WhatsApp (Ruta)", "Pedir evidencia fotográfica (Entrega)"],
     "CHEDRAUI": ["Solicitud de cita", "Generar templates", "Enviar correo de aviso", "Confirmar cita por correo", "Preguntar status en WhatsApp (Ruta)", "Pedir evidencia fotográfica (Entrega)"],
@@ -448,19 +445,37 @@ def update_user_permissions(user_id):
     user.permissions = db.session.query(Permission).filter(Permission.name.in_(request.json.get('permissions', []))).all()
     db.session.commit()
     return jsonify({"success": True, "message": f"Permisos de {user.nombre} actualizados."})
+
 @app.route('/api/logistica/datos')
 @login_required
 def get_logistica_data():
     requested_channel = request.args.get('canal')
+
+    # Determinar los canales disponibles para el usuario
     if current_user.rol == 'super':
         channels_for_user = [c.name for c in Channel.query.order_by(Channel.name).all()]
-        channel_to_load = requested_channel or 'ALL'
     else:
         channels_for_user = [c.name for c in current_user.allowed_channels]
-        if not channels_for_user: return jsonify({"data": [], "channels": [], "loaded_channel": None})
-        channel_to_load = requested_channel if requested_channel and requested_channel in channels_for_user else channels_for_user[0]
+
+    # Si el usuario no tiene canales, devolver una respuesta vacía
+    if not channels_for_user:
+        return jsonify({"data": [], "channels": [], "loaded_channel": None})
+
+    # Determinar qué canal cargar
+    if requested_channel and (requested_channel in channels_for_user or requested_channel == 'ALL' and current_user.rol == 'super'):
+        channel_to_load = requested_channel
+    elif current_user.rol == 'super':
+        channel_to_load = 'ALL'  # El superusuario ve todo por defecto
+    else:
+        channel_to_load = channels_for_user[0]  # El usuario normal ve su primer canal asignado
+
     df_filtrado, _ = sincronizar_y_obtener_datos_completos(channel_to_load)
-    return jsonify({"data": df_filtrado.to_dict('records'), "channels": channels_for_user, "loaded_channel": channel_to_load})
+    return jsonify({
+        "data": df_filtrado.to_dict('records'),
+        "channels": channels_for_user,
+        "loaded_channel": channel_to_load
+    })
+
 @app.route('/api/channels')
 @login_required
 def get_channels():
@@ -681,4 +696,4 @@ initialize_database()
 # --- INICIO DE LA APLICACIÓN ---
 if __name__ == '__main__':
     # Este bloque solo se ejecuta en desarrollo local
-    app.run(debug=True, port=5001)
+    app.run(debug=True, port=50)
