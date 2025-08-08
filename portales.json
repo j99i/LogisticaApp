@@ -1,0 +1,66 @@
+[
+    {
+        "portales": [
+            {
+                "id": 1754510762666,
+                "nombre": "Acceso Operation File",
+                "url": "https://minmerglobalmx.sharepoint.com/:x:/r/sites/TraficoMinmerGlobal/_layouts/15/Doc.aspx?sourcedoc=%7B377E6C85-460F-4386-A99A-B81FF31D806E%7D&file=Operation%20File%202025.xlsx&wdLOR=c2CF973FF-82B4-4D11-91BC-D12EEB478D13&fromShare=true&action=default&mobileredirect=true",
+                "usuario": ".",
+                "contra": ".",
+                "favorito": false
+            }
+        ],
+        "id": "9f909f11-4e49-43ab-b0f8-1fd9a4474a6c",
+        "nombre": "Operación File"
+    },
+    {
+        "portales": [
+            {
+                "contra": "pass123",
+                "favorito": true,
+                "id": 1,
+                "nombre": "Retail Link",
+                "url": "https://retaillink.login.wal-mart.com/",
+                "usuario": "usuario_walmart"
+            },
+            {
+                "contra": "pass456",
+                "favorito": false,
+                "id": 2,
+                "nombre": "Smart Trac",
+                "url": "https://smart-trac.com/login",
+                "usuario": "usuario_smarttrac"
+            }
+        ],
+        "id": "26e4abf8-d44e-41a1-949f-b96620484087",
+        "nombre": "WALMART"
+    },
+    {
+        "portales": [
+            {
+                "contra": "pass789",
+                "favorito": false,
+                "id": 3,
+                "nombre": "Portal de Proveedores Chedraui",
+                "url": "https://proveedores.chedraui.com.mx/",
+                "usuario": "chedraui_user"
+            }
+        ],
+        "id": "672d885b-6ceb-4ccd-9006-c17e69ff6bdc",
+        "nombre": "CHEDRAUI"
+    },
+    {
+        "portales": [
+            {
+                "contra": "pass_abc",
+                "favorito": false,
+                "id": 4,
+                "nombre": "Portal de Proveedores Liverpool",
+                "url": "https://proveedores.liverpool.com.mx/login",
+                "usuario": "user_liverpool"
+            }
+        ],
+        "id": "380dad92-a847-425c-a22d-4a9f47eb2854",
+        "nombre": "LIVERPOOL"
+    }
+]

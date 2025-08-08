@@ -1,0 +1,14 @@
+Flask
+Flask-SQLAlchemy
+Flask-Login
+Flask-Session
+pandas
+openpyxl
+requests
+msal
+python-dotenv
+numpy
+xlsxwriter
+gunicorn
+gevent
+

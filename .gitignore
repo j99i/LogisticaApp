@@ -1,0 +1,17 @@
+# Entorno virtual
+venv/
+.venv/
+
+# Archivos de entorno
+.env
+
+# Caché de Python
+__pycache__/
+*.pyc
+
+# Archivos de sesión de Flask
+.flask_session/
+
+# Carpeta de datos (la gestionará el disco de Render)
+/data/
+

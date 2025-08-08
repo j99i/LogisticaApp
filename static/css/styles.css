@@ -1,0 +1,212 @@
+/* --- 1. Definición de la Paleta de Colores y Fuentes --- */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;700&family=Playfair+Display:wght@700&display=swap');
+
+:root {
+    /* Fondos */
+    --background-dark: #0D0D0D;
+    --surface-color: #1A1A1A;
+
+    /* Acentos (Dorado/Ámbar más sutil) */
+    --primary-accent: #C5A475;
+    --primary-accent-hover: #D8B588;
+
+    /* Textos (Con mayor contraste) */
+    --text-primary: #F5F5F5;
+    --text-secondary: #AAAAAA;
+
+    /* Otros colores */
+    --border-color: #2c2c2c;
+    --danger-color: #E57373;
+    --success-color: #81C784;
+    --info-color: #64B5F6;
+    --warning-color: #FFB74D;
+}
+
+/* --- 2. Estilos Globales y Reseteo de Bootstrap --- */
+body {
+    background-color: var(--background-dark);
+    color: var(--text-primary);
+    font-family: 'Poppins', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+    color: var(--text-primary);
+}
+
+h4 i, h5 i {
+    color: var(--primary-accent);
+}
+
+a {
+    color: var(--primary-accent);
+    text-decoration: none;
+    transition: color 0.2s ease-in-out;
+}
+a:hover {
+    color: var(--primary-accent-hover);
+}
+
+/* --- 3. Estilos de Componentes Principales --- */
+
+/* Encabezado */
+header.bg-dark {
+    background-color: var(--surface-color) !important;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Tarjetas (Cards) */
+.card {
+    background-color: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+.card-header {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Botones */
+.btn-primary {
+    background-color: var(--primary-accent);
+    border-color: var(--primary-accent);
+    color: #0D0D0D;
+    font-weight: 500;
+}
+.btn-primary:hover {
+    background-color: var(--primary-accent-hover);
+    border-color: var(--primary-accent-hover);
+    color: #0D0D0D;
+}
+.btn-outline-primary {
+    border-color: var(--primary-accent);
+    color: var(--primary-accent);
+}
+.btn-outline-primary:hover {
+    background-color: var(--primary-accent);
+    border-color: var(--primary-accent);
+    color: #0D0D0D;
+}
+.btn-warning {
+    background-color: var(--warning-color);
+    border-color: var(--warning-color);
+    color: #121212;
+}
+.btn-outline-info {
+    border-color: var(--info-color);
+    color: var(--info-color);
+}
+.btn-outline-info:hover {
+    background-color: var(--info-color);
+    color: #FFFFFF;
+}
+
+/* Pestañas de Navegación */
+.nav-tabs {
+    border-bottom-color: var(--border-color);
+}
+.nav-tabs .nav-link {
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+}
+.nav-tabs .nav-link.active {
+    background-color: var(--background-dark);
+    color: var(--primary-accent);
+    border-color: var(--border-color) var(--border-color) var(--background-dark);
+}
+
+/* Tablas */
+.table {
+    --bs-table-bg: transparent;
+    --bs-table-striped-bg: rgba(255, 255, 255, 0.03);
+    --bs-table-hover-bg: rgba(197, 164, 117, 0.15); /* Hover dorado sutil */
+    --bs-table-border-color: var(--border-color);
+    color: var(--text-primary);
+}
+.table th {
+    color: var(--text-secondary);
+}
+
+/* Modales */
+.modal-content {
+    background-color: var(--surface-color);
+    border: 1px solid var(--border-color);
+}
+.modal-header, .modal-footer {
+    border-bottom-color: var(--border-color);
+    border-top-color: var(--border-color);
+}
+
+/* Formularios */
+.form-control, .form-select {
+    background-color: var(--background-dark);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+.form-control:focus, .form-select:focus {
+    background-color: var(--background-dark);
+    border-color: var(--primary-accent);
+    color: var(--text-primary);
+    box-shadow: 0 0 0 0.25rem rgba(197, 164, 117, 0.25);
+}
+
+/* Scrollbars Globales */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--surface-color); }
+::-webkit-scrollbar-thumb {
+    background-color: #424242;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background-color: var(--primary-accent); }
+
+
+/* --- 4. Componentes Específicos de la App --- */
+
+/* Regla para la barra de desplazamiento de la tarjeta de notas */
+#notes-list-container.scrollable-card-list {
+  max-height: 300px; /* Altura máxima antes de que aparezca el scroll */
+  overflow-y: auto;  /* Muestra el scroll vertical cuando es necesario */
+  flex-shrink: 1;
+  min-height: 0;     /* Truco para que max-height funcione en un contenedor flex */
+}
+/* Añade esto al final de tu archivo static/css/styles.css */
+
+.btn-group .btn { 
+    display: flex; 
+    align-items: center; 
+}
+
+.toast-container { 
+    z-index: 1100; 
+}
+
+.copy-success { 
+    color: var(--success-color, #198754);
+}
+
+.favorite-btn .bi-star-fill { 
+    color: var(--warning-color, #ffc107);
+}
+/* Agrega este código al final de tu archivo static/css/styles.css */
+
+.scrollable-card-list {
+  overflow-y: auto;
+  /* Puedes ajustar esta altura según tus necesidades */
+  max-height: 350px; 
+}
+
+/* Estas reglas aseguran que los contenedores de las tarjetas 
+  usen todo el espacio vertical disponible, permitiendo que el 
+  scroll funcione correctamente.
+*/
+#hoy-orders-container, #manana-orders-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}

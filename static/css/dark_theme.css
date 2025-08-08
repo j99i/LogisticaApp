@@ -1,0 +1,210 @@
+/* static/css/theme_hennessy_inspired.css (Versión Inspirada en Hennessy) */
+
+/* --- 1. Fuentes y Paleta de Colores Inspirada en Hennessy --- */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700&family=Lato:wght@300;400;700&display=swap');
+
+:root {
+    /* Tonos base oscuros y profundos */
+    --background-dark: #100F0D; /* Un negro ligeramente cálido, como el de una bodega */
+    --surface-color: #1A1816;   /* Superficie para tarjetas, un poco más clara */
+
+    /* El dorado del coñac como acento principal */
+    --primary-accent: #C0A062;      /* Un dorado elegante y envejecido */
+    --primary-accent-hover: #D8B588;/* Un dorado más brillante para interacciones */
+
+    /* Acento secundario inspirado en el V.S.O.P. y Paradis */
+    --accent-red: #A42A28; /* Rojo profundo para alertas y destaques especiales */
+
+    /* Colores de texto para máxima legibilidad sobre fondos oscuros */
+    --text-primary: #F0F0F0;      /* Un blanco suave, menos estridente que el blanco puro */
+    --text-secondary: #A0A0A0;    /* Gris claro para texto secundario y metadatos */
+
+    /* Bordes sutiles que definen sin distraer */
+    --border-color: #3A3630;
+}
+
+/* --- 2. Estilos Globales y de Fondo --- */
+body {
+    background-color: var(--background-dark);
+    /* Una textura sutil que evoca cuero o tapicería de lujo */
+    background-image: url('data:image/svg+xml,%3Csvg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%231A1816" fill-opacity="0.3"%3E%3Cpath d="M0 0h40v40H0zM40 40h40v40H40z" /%3E%3C/g%3E%3C/g%3E%3C/svg%3E');
+    color: var(--text-primary);
+    font-family: 'Lato', sans-serif;
+    font-weight: 300;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cormorant Garamond', serif;
+    color: var(--text-primary);
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    /* Un sutil brillo dorado para evocar lujo */
+    text-shadow: 0 0 10px rgba(192, 160, 98, 0.15);
+}
+
+h4 i, h5 i {
+    color: var(--primary-accent);
+}
+
+a {
+    color: var(--primary-accent);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+a:hover {
+    color: var(--primary-accent-hover);
+}
+
+/* --- 3. Componentes Principales con Estilo Premium --- */
+
+header.bg-dark {
+    background-color: rgba(16, 15, 13, 0.75) !important; /* Usando el nuevo fondo oscuro */
+    backdrop-filter: blur(15px);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.card {
+    background-color: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    /* Sombra más suave y profunda para un efecto "flotante" de lujo */
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+    transition: all 0.3s ease;
+}
+.card:hover {
+    border-color: var(--primary-accent);
+    transform: translateY(-5px);
+}
+.card-header {
+    background-color: transparent;
+    border-bottom: 1px solid var(--border-color);
+    font-family: 'Lato', sans-serif;
+    font-weight: 400;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    letter-spacing: 2px; /* Más espaciado para un look premium */
+    color: var(--text-secondary);
+}
+
+.btn {
+    border-radius: 4px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    transition: all 0.3s ease;
+    border-width: 2px;
+    padding: 0.75rem 1.5rem;
+}
+.btn-primary {
+    background-color: var(--primary-accent);
+    border-color: var(--primary-accent);
+    color: var(--background-dark);
+}
+.btn-primary:hover {
+    background-color: var(--primary-accent-hover);
+    border-color: var(--primary-accent-hover);
+    color: var(--background-dark);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(192, 160, 98, 0.25);
+}
+.btn-outline-primary {
+    border-color: var(--primary-accent);
+    color: var(--primary-accent);
+}
+.btn-outline-primary:hover {
+    background-color: var(--primary-accent);
+    color: var(--background-dark);
+    border-color: var(--primary-accent);
+}
+
+/* Botón de advertencia inspirado en el rojo Hennessy */
+.btn-warning {
+    background-color: transparent;
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+}
+.btn-warning:hover {
+    background-color: var(--accent-red);
+    color: var(--text-primary);
+    border-color: var(--accent-red);
+}
+
+
+.nav-tabs {
+    border-bottom: 1px solid var(--border-color);
+}
+.nav-tabs .nav-link {
+    color: var(--text-secondary) !important;
+    border: none;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+}
+.nav-tabs .nav-link.active, .nav-tabs .nav-item.show .nav-link {
+    background-color: transparent;
+    color: var(--primary-accent) !important;
+    border-bottom: 3px solid var(--primary-accent);
+}
+
+.table {
+    --bs-table-bg: transparent;
+    --bs-table-striped-bg: rgba(0, 0, 0, 0.15);
+    --bs-table-hover-bg: rgba(192, 160, 98, 0.08);
+    --bs-table-border-color: var(--border-color);
+    color: var(--text-primary);
+}
+.table th {
+    color: var(--text-secondary) !important;
+    font-weight: 700; /* Un poco más de peso */
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+}
+
+.modal-content, .accordion-item, .list-group-item {
+    background-color: var(--surface-color);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+.accordion-button {
+    background-color: var(--surface-color);
+    color: var(--text-primary);
+}
+.accordion-button:not(.collapsed) {
+    background-color: rgba(192, 160, 98, 0.1);
+    color: var(--primary-accent);
+    box-shadow: inset 0 -1px 0 var(--border-color);
+}
+.accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(192, 160, 98, 0.25);
+}
+
+.form-control, .form-select, .input-group-text {
+    background-color: var(--background-dark);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+    border-radius: 4px;
+}
+.form-control::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+.form-control:focus, .form-select:focus {
+    background-color: var(--background-dark);
+    border-color: var(--primary-accent);
+    color: var(--text-primary);
+    box-shadow: 0 0 0 0.25rem rgba(192, 160, 98, 0.25);
+}
+
+/* --- 4. Forzar Estilos y Correcciones --- */
+.card, .card-body, .card-body p, .card-body h1, .card-body h2, .card-body h3, .card-body h4, .card-body h5,
+.card-body .display-4, .card-body .display-5, .card-body .fs-4, .card-body strong {
+    color: var(--text-primary) !important;
+}
+.card-body .text-muted, .text-muted {
+    color: var(--text-secondary) !important;
+}
+.card .list-group-item {
+    background-color: transparent;
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
