@@ -16,18 +16,13 @@ import requests
 import base64
 import numpy as np
 
-# --- INICIO: Modificación para Disco Persistente de Render ---
-# Define el directorio 'data' donde se guardarán los archivos persistentes.
+# --- Modificación para Disco Persistente de Render ---
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
-# --- FIN: Modificación para Disco Persistente de Render ---
 
 # --- 1. CONFIGURACIÓN ---
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
-# La configuración de SERVER_NAME se comenta o elimina para producción, 
-# ya que Render la gestiona automáticamente.
-# app.config['SERVER_NAME'] = 'localhost:5001' 
 app.config['SUPER_USER_EMAIL'] = 'j.ortega@minmerglobal.com'
 
 # --- CONFIGURACIÓN DE FLASK-SESSION ---
@@ -48,8 +43,9 @@ SCOPES = ["User.Read", "Sites.ReadWrite.All"]
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 REDIRECT_PATH = "/get_token" 
 
-# --- CONFIGURACIÓN DE LA BASE DE DATOS (Modificada para Render) ---
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(DATA_DIR, "seguimiento_v2.db")}'
+# --- CONFIGURACIÓN DE LA BASE DE DATOS ---
+DB_PATH = os.path.join(DATA_DIR, "seguimiento_v2.db")
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -58,22 +54,15 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- LÓGICA MEJORADA PARA MANEJAR PORTALES (Modificada para Render) ---
+# --- LÓGICA PARA MANEJAR PORTALES ---
 PORTALES_FILE_PATH = os.path.join(DATA_DIR, 'portales.json')
 
 def sanitize_and_get_ids(data):
-    """
-    Asegura que los datos de portales sean consistentes.
-    1. Renombra la clave 'cliente' a 'nombre'.
-    2. Asegura que cada cliente y portal tenga un ID único.
-    Modifica la data in-place y devuelve True si se hicieron cambios.
-    """
     changes_made = False
     for cliente_data in data:
         if 'cliente' in cliente_data and isinstance(cliente_data, dict):
             cliente_data['nombre'] = cliente_data.pop('cliente')
             changes_made = True
-            
         if 'id' not in cliente_data:
             cliente_data['id'] = str(uuid.uuid4())
             changes_made = True
@@ -84,7 +73,6 @@ def sanitize_and_get_ids(data):
     return changes_made
 
 def load_portales_data():
-    """Carga los datos de portales, los estandariza y asegura que tengan IDs."""
     try:
         with open(PORTALES_FILE_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -95,12 +83,11 @@ def load_portales_data():
         return []
 
 def save_portales_data(data):
-    """Guarda los datos de portales en el archivo JSON."""
     with open(PORTALES_FILE_PATH, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
-
 # --- 2. MODELOS DE BASE DE DATOS ---
+# (El código de los modelos no cambia, se omite por brevedad)
 user_permissions = db.Table('user_permissions',
     db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
     db.Column('permission_id', db.Integer, db.ForeignKey('permission.id'), primary_key=True)
@@ -180,6 +167,7 @@ class HistorialOrden(db.Model):
         return data
 
 # --- COMANDOS DE TERMINAL ---
+# (El código de los comandos no cambia, se omite por brevedad)
 @app.cli.command('create-db')
 def create_db_command():
     with app.app_context():
@@ -220,7 +208,8 @@ def assign_role_command(email, role):
         db.session.commit()
         print(f"✅ Rol '{role}' asignado exitosamente a {email}.")
 
-# ... (El resto del código, como la lógica de negocio, rutas, etc., permanece igual)
+# --- RUTAS Y LÓGICA DE LA APLICACIÓN ---
+# (El resto del código de la aplicación no cambia, se omite por brevedad)
 TAREAS_POR_CLIENTE = {
     "WALMART": ["Enviar confirmación de cita", "Subir templates", "Preguntar status en WhatsApp (Ruta)", "Pedir evidencia fotográfica (Entrega)"],
     "CHEDRAUI": ["Solicitud de cita", "Generar templates", "Enviar correo de aviso", "Confirmar cita por correo", "Preguntar status en WhatsApp (Ruta)", "Pedir evidencia fotográfica (Entrega)"],
@@ -306,13 +295,10 @@ def sincronizar_y_obtener_datos_completos(canal_filtro=None):
             df_final = df_final[df_final['Canal'].fillna('').str.strip().str.title() == canal_filtro.title()]
     df_final = df_final.replace({np.nan: None, pd.NaT: None})
     return df_final, all_unique_channels
-
-# --- 4. RUTAS DE LA APLICACIÓN ---
 @app.route('/')
 @login_required
 def index():
     return render_template('index.html')
-
 @app.route('/login')
 def login():
     session["flow"] = _build_auth_code_flow()
@@ -340,47 +326,37 @@ def logout():
     session.clear()
     return redirect(f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/logout?post_logout_redirect_uri={url_for('index', _external=True)}")
 def _build_auth_code_flow(scopes=None): return _build_msal_app().initiate_auth_code_flow(scopes or SCOPES, redirect_uri=url_for("get_token", _external=True))
-
 @app.route('/admin/users')
 @login_required
 def admin_users_page():
     if not current_user.rol == 'super': abort(403)
     return render_template('admin_users.html')
-
 @app.route('/api/me')
 @login_required
 def me():
     permissions = [p.name for p in (Permission.query.all() if current_user.rol == 'super' else current_user.permissions)]
     return jsonify({"email": current_user.email, "nombre": current_user.nombre, "rol": current_user.rol, "permissions": permissions, "can_manage_portals": current_user.has_permission('manage_portals')})
-
-# --- RUTAS DEL MÓDULO DE PORTALES ---
 @app.route('/monitoreo-portales')
 @login_required
 def monitoreo_portales():
     return render_template('monitoreo_portales.html')
-
 @app.route('/api/portales', methods=['GET'])
 @login_required
 def get_portales():
     portales = load_portales_data()
     return jsonify(portales)
-
 @app.route('/api/portales/clientes', methods=['POST'])
 @login_required
 def add_cliente():
     if not current_user.has_permission('manage_portals'):
         abort(403, "No tienes permiso para realizar esta acción.")
-    
     data = request.get_json()
     if not data or 'nombre' not in data or not data['nombre'].strip():
         return jsonify({"error": "El nombre del cliente es obligatorio."}), 400
-
     portales = load_portales_data()
     nombre_cliente = data['nombre'].strip()
-
     if any(isinstance(c, dict) and c.get('nombre', '').lower() == nombre_cliente.lower() for c in portales):
         return jsonify({"error": "Ya existe un cliente con ese nombre."}), 409
-
     nuevo_cliente = {
         "id": str(uuid.uuid4()),
         "nombre": nombre_cliente,
@@ -389,38 +365,30 @@ def add_cliente():
     portales.insert(0, nuevo_cliente)
     save_portales_data(portales)
     return jsonify(nuevo_cliente), 201
-
 @app.route('/api/portales/clientes/<string:cliente_id>', methods=['DELETE'])
 @login_required
 def delete_cliente(cliente_id):
     if not current_user.has_permission('manage_portals'):
         abort(403, "No tienes permiso para realizar esta acción.")
-    
     portales = load_portales_data()
     cliente_encontrado = next((c for c in portales if c.get('id') == cliente_id), None)
-    
     if not cliente_encontrado:
         return jsonify({"error": "Cliente no encontrado."}), 404
-
     portales.remove(cliente_encontrado)
     save_portales_data(portales)
     return jsonify({"message": "Cliente eliminado con éxito."}), 200
-
 @app.route('/api/portales/clientes/<string:cliente_id>/portals', methods=['POST'])
 @login_required
 def add_portal(cliente_id):
     if not current_user.has_permission('manage_portals'):
         abort(403, "No tienes permiso para realizar esta acción.")
-
     portal_data = request.get_json()
     if not all(k in portal_data for k in ['nombre', 'url', 'usuario', 'contra']):
         return jsonify({"error": "Faltan datos para crear el portal."}), 400
-
     portales = load_portales_data()
     cliente = next((c for c in portales if c.get('id') == cliente_id), None)
     if not cliente:
         return jsonify({"error": "Cliente no encontrado."}), 404
-    
     nuevo_portal = {
         "id": str(uuid.uuid4()),
         "nombre": portal_data['nombre'],
@@ -431,16 +399,13 @@ def add_portal(cliente_id):
     cliente['portales'].append(nuevo_portal)
     save_portales_data(portales)
     return jsonify(nuevo_portal), 201
-
 @app.route('/api/portales/portals/<string:portal_id>', methods=['PUT'])
 @login_required
 def update_portal(portal_id):
     if not current_user.has_permission('manage_portals'):
         abort(403, "No tienes permiso para realizar esta acción.")
-        
     update_data = request.get_json()
     portales = load_portales_data()
-    
     for cliente in portales:
         for i, portal in enumerate(cliente.get('portales', [])):
             if portal.get('id') == portal_id:
@@ -450,15 +415,12 @@ def update_portal(portal_id):
                 portal['contra'] = update_data.get('contra', portal['contra'])
                 save_portales_data(portales)
                 return jsonify(portal), 200
-                
     return jsonify({"error": "Portal no encontrado."}), 404
-
 @app.route('/api/portales/portals/<string:portal_id>', methods=['DELETE'])
 @login_required
 def delete_portal(portal_id):
     if not current_user.has_permission('manage_portals'):
         abort(403, "No tienes permiso para realizar esta acción.")
-        
     portales = load_portales_data()
     for cliente in portales:
         portal_a_eliminar = next((p for p in cliente.get('portales', []) if p.get('id') == portal_id), None)
@@ -466,10 +428,7 @@ def delete_portal(portal_id):
             cliente['portales'].remove(portal_a_eliminar)
             save_portales_data(portales)
             return jsonify({"message": "Portal eliminado con éxito."}), 200
-            
     return jsonify({"error": "Portal no encontrado."}), 404
-
-# --- RESTO DE LAS RUTAS DE LA APP ---
 @app.route('/api/users')
 @login_required
 def get_users():
@@ -692,12 +651,34 @@ def desagrupar_bloque():
     db.session.commit()
     return jsonify({"success": True, "message": "Las órdenes han sido desagrupadas."})
 
+# --- INICIO: Función de inicialización automática ---
+def initialize_database():
+    """Crea la BD y los permisos si no existen."""
+    if not os.path.exists(DB_PATH):
+        print("Primera ejecución: Inicializando base de datos...")
+        with app.app_context():
+            db.create_all()
+            
+            # Lógica para inicializar permisos
+            permissions = [
+                {'name': 'update_status', 'description': 'Puede cambiar el estado de las órdenes'},
+                {'name': 'edit_notes', 'description': 'Puede editar y limpiar las notas de cualquier orden'},
+                {'name': 'archive_orders', 'description': 'Puede archivar y restaurar órdenes del historial'},
+                {'name': 'group_orders', 'description': 'Puede agrupar órdenes en bloques'},
+                {'name': 'manage_portals', 'description': 'Puede agregar, editar y eliminar portales'},
+                {'name': 'manage_users', 'description': 'Puede ver y cambiar permisos de otros usuarios'}
+            ]
+            for perm_data in permissions:
+                perm = Permission.query.filter_by(name=perm_data['name']).first()
+                if not perm:
+                    db.session.add(Permission(**perm_data))
+            db.session.commit()
+            print("✅ Base de datos y permisos inicializados.")
+
+# --- Llamada a la función de inicialización ---
+initialize_database()
 
 # --- INICIO DE LA APLICACIÓN ---
 if __name__ == '__main__':
     # Este bloque solo se ejecuta en desarrollo local
-    with app.app_context():
-        db.create_all()
-        if not os.path.exists(PORTALES_FILE_PATH):
-            save_portales_data([])
     app.run(debug=True, port=5001)
