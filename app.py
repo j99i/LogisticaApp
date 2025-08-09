@@ -515,19 +515,39 @@ def update_user_permissions(user_id):
 def get_logistica_data():
     try:
         requested_channel = request.args.get('canal')
+
+        # 1. Sincronizamos y ahora sí capturamos la lista de canales del Excel
+        #    Pasamos None para que la función de sincronización no filtre nada todavía.
+        df_filtrado, all_excel_channels = sincronizar_y_obtener_datos_completos(None)
+
+        # 2. Determinamos qué canales debe ver el usuario en su filtro
         if current_user.rol == 'super':
-            channels_for_user = [c.name for c in Channel.query.order_by(Channel.name).all()]
+            # El super admin puede ver todos los canales que vengan del archivo de Excel
+            channels_for_user = all_excel_channels
         else:
-            channels_for_user = [c.name for c in current_user.allowed_channels]
+            # Un usuario normal solo ve la intersección de sus canales permitidos y los que existen en el Excel
+            allowed_user_channels = {c.name for c in current_user.allowed_channels}
+            channels_for_user = sorted([ch for ch in all_excel_channels if ch in allowed_user_channels])
+
+        # Si un usuario normal no tiene canales asignados, se devuelve una respuesta vacía
         if not channels_for_user and current_user.rol != 'super':
             return jsonify({"data": [], "channels": [], "loaded_channel": None})
+
+        # 3. Determinamos qué datos se van a cargar en la tabla principal
         if requested_channel and (requested_channel in channels_for_user or (requested_channel == 'ALL' and current_user.rol == 'super')):
+            # Si se pide un canal específico (y el usuario tiene permiso), se usa ese
             channel_to_load = requested_channel
         elif current_user.rol == 'super':
+            # Si no se pide nada, el super admin ve 'Todos los Canales' por defecto
             channel_to_load = 'ALL'
         else:
-            channel_to_load = channels_for_user[0]
-        df_filtrado, _ = sincronizar_y_obtener_datos_completos(channel_to_load)
+            # Un usuario normal ve su primer canal asignado por defecto
+            channel_to_load = channels_for_user[0] if channels_for_user else None
+        
+        # 4. Si el canal a cargar NO es 'ALL', filtramos el DataFrame que ya teníamos en memoria
+        if channel_to_load and channel_to_load.upper() != 'ALL':
+             df_filtrado = df_filtrado[df_filtrado['Canal'].fillna('').str.strip().str.title() == channel_to_load.title()]
+
         return jsonify({
             "data": df_filtrado.to_dict('records'),
             "channels": channels_for_user,
