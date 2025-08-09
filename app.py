@@ -30,7 +30,7 @@ app.config['SUPER_USER_EMAIL'] = 'j.ortega@minmerglobal.com'
 
 # --- CONFIGURACIÓN DE FLASK-SESSION ---
 app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_FILE_DIR'] = './.flask_session/'
+app.config['SESSION_FILE_DIR'] = os.path.join(DATA_DIR, '.flask_session/')
 Session(app)
 
 # --- CONFIGURACIÓN DE SHAREPOINT Y MSAL ---
