@@ -304,20 +304,45 @@ def login():
 @app.route(REDIRECT_PATH)
 def get_token():
     try:
+        # Tu código existente para obtener el token...
         cache = _get_token_from_cache()
-        result = _build_msal_app(cache=cache).acquire_token_by_auth_code_flow(session.get("flow", {}), request.args)
-        if "error" in result: return f"Error de login: {result.get('error_description')}", 400
+        result = _build_msal_app(cache=cache).acquire_token_by_auth_code_flow(
+            session.get("flow", {}), request.args
+        )
+        if "error" in result:
+            return f"Error de login de Microsoft: {result.get('error_description')}", 400
+        
         claims = result.get("id_token_claims")
-        email, nombre = claims.get("preferred_username"), claims.get("name")
+        email = claims.get("preferred_username")
+        nombre = claims.get("name")
+
+        if not email:
+            return "Error: No se pudo obtener el email del token.", 400
+
         user = User.query.filter_by(email=email).first()
         if not user:
             user = User(email=email, nombre=nombre, rol='super' if email.lower() == app.config['SUPER_USER_EMAIL'].lower() else 'normal')
             db.session.add(user)
             db.session.commit()
+        
         login_user(user)
         session["token_cache"] = cache.serialize()
-    except ValueError: pass
-    return redirect(url_for('index'))
+        
+        return redirect(url_for('index'))
+
+    except ValueError as e:
+        # Imprime el error completo en la consola/logs de tu servidor
+        print("--- ERROR DE AUTENTICACIÓN (ValueError) ---")
+        traceback.print_exc()
+        print("------------------------------------------")
+        # Muestra un error claro al usuario
+        return f"Error de autenticación. Es posible que la sesión haya expirado. Por favor, intenta iniciar sesión de nuevo. <br><br>Detalle técnico: {e}", 400
+    except Exception as e:
+        # Captura cualquier otro error inesperado
+        print("--- ERROR INESPERADO EN GET_TOKEN ---")
+        traceback.print_exc()
+        print("-------------------------------------")
+        return f"Ocurrió un error inesperado durante el inicio de sesión. <br><br>Detalle técnico: {e}", 500
 @app.route('/logout')
 def logout():
     logout_user()
