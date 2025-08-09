@@ -703,6 +703,7 @@ def initialize_database():
 # y antes del bloque 'if __name__ == '__main__':'.
 initialize_database()
 
+
 # --- INICIO DE LA APLICACIÓN ---
 if __name__ == '__main__':
     # Este bloque solo se ejecuta en desarrollo local
