@@ -1,7 +1,7 @@
 import os
 import json
 import uuid
-import traceback
+import traceback # Importar para un mejor log de errores
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -17,11 +17,9 @@ import requests
 import base64
 import numpy as np
 
-# --- CONFIGURACIÓN DE RUTAS LOCALES ---
-# Se ha corregido el error: la variable DB_PATH se ha añadido.
+# --- Modificación para Disco Persistente de Render ---
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, 'seguimiento_v2.db')
 
 # --- 1. CONFIGURACIÓN ---
 app = Flask(__name__)
@@ -30,7 +28,7 @@ app.config['SUPER_USER_EMAIL'] = 'j.ortega@minmerglobal.com'
 
 # --- CONFIGURACIÓN DE FLASK-SESSION ---
 app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_FILE_DIR'] = os.path.join(DATA_DIR, '.flask_session/')
+app.config['SESSION_FILE_DIR'] = './.flask_session/'
 Session(app)
 
 # --- CONFIGURACIÓN DE SHAREPOINT Y MSAL ---
@@ -46,8 +44,8 @@ SCOPES = ["User.Read", "Sites.ReadWrite.All"]
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 REDIRECT_PATH = "/get_token" 
 
-# --- CONFIGURACIÓN DE LA BASE DE DATOS (RESTAURADA A SQLITE) ---
-# Ahora usamos el archivo local de SQLite que se guardará en el disco persistente.
+# --- CONFIGURACIÓN DE LA BASE DE DATOS ---
+DB_PATH = os.path.join(DATA_DIR, "seguimiento_v2.db")
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
@@ -448,52 +446,52 @@ def update_user_permissions(user_id):
     user.permissions = db.session.query(Permission).filter(Permission.name.in_(request.json.get('permissions', []))).all()
     db.session.commit()
     return jsonify({"success": True, "message": f"Permisos de {user.nombre} actualizados."})
-@app.route('/api/users/<int:user_id>/channels', methods=['POST'])
-@login_required
-def update_user_channels(user_id):
-    if not current_user.rol == 'super': abort(403)
-    user = User.query.get_or_404(user_id)
-    if user.rol == 'super': abort(400, "No se pueden modificar los canales del superadministrador.")
-    channel_names = request.json.get('channels', [])
-    user.allowed_channels = db.session.query(Channel).filter(Channel.name.in_(channel_names)).all()
-    db.session.commit()
-    return jsonify({"success": True, "message": f"Canales de {user.nombre} actualizados."})
 
 @app.route('/api/logistica/datos')
 @login_required
 def get_logistica_data():
+    # --- INICIO: Bloque de manejo de errores para la sincronización ---
     try:
         requested_channel = request.args.get('canal')
+
+        # Determinar los canales disponibles para el usuario
         if current_user.rol == 'super':
             channels_for_user = [c.name for c in Channel.query.order_by(Channel.name).all()]
         else:
             channels_for_user = [c.name for c in current_user.allowed_channels]
+
+        # Si el usuario no tiene canales, devolver una respuesta vacía
         if not channels_for_user and current_user.rol != 'super':
             return jsonify({"data": [], "channels": [], "loaded_channel": None})
+
+        # Determinar qué canal cargar
         if requested_channel and (requested_channel in channels_for_user or (requested_channel == 'ALL' and current_user.rol == 'super')):
             channel_to_load = requested_channel
         elif current_user.rol == 'super':
             channel_to_load = 'ALL'
         else:
             channel_to_load = channels_for_user[0]
-        df_filtrado, all_channels_on_sharepoint = sincronizar_y_obtener_datos_completos(channel_to_load)
+
+        df_filtrado, _ = sincronizar_y_obtener_datos_completos(channel_to_load)
+        
         return jsonify({
             "data": df_filtrado.to_dict('records'),
             "channels": channels_for_user,
-            "loaded_channel": channel_to_load,
-            "all_channels_on_sharepoint": all_channels_on_sharepoint
+            "loaded_channel": channel_to_load
         })
     except Exception as e:
+        # Imprime el error detallado en los logs del servidor (visible en Render)
         print(f"ERROR CRÍTICO al sincronizar con SharePoint: {e}", flush=True)
         traceback.print_exc()
+        # Devuelve una respuesta de error al frontend
         return jsonify({"error": "No se pudo sincronizar con la fuente de datos (SharePoint). Revise los logs del servidor para más detalles."}), 500
+    # --- FIN: Bloque de manejo de errores ---
 
 @app.route('/api/channels')
 @login_required
 def get_channels():
     channels = Channel.query.order_by(Channel.name).all()
     return jsonify([c.name for c in channels])
-
 def _get_filtered_history_query():
     query = HistorialOrden.query
     if cliente := request.args.get('cliente'):
@@ -514,14 +512,12 @@ def _get_filtered_history_query():
             query = query.filter(HistorialOrden.fecha_archivado < end_date + timedelta(days=1))
         except ValueError: pass
     return query
-
 @app.route('/api/historial')
 @login_required
 def get_historial_data():
     query = _get_filtered_history_query()
     historial_ordenes = query.order_by(HistorialOrden.fecha_archivado.desc()).all()
     return jsonify([orden.to_dict() for orden in historial_ordenes])
-
 @app.route('/api/historial/descargar')
 @login_required
 def descargar_historial():
@@ -636,6 +632,16 @@ def clear_order_notes():
     seguimiento.notas = ""
     db.session.commit()
     return jsonify({"success": True, "message": "Notas de la orden limpiadas con éxito."})
+@app.route('/api/users/<int:user_id>/channels', methods=['POST'])
+@login_required
+def update_user_channels(user_id):
+    if not current_user.rol == 'super': abort(403)
+    user = User.query.get_or_404(user_id)
+    if user.rol == 'super': abort(400, "No se pueden modificar los canales del superadministrador.")
+    channel_names = request.json.get('channels', [])
+    user.allowed_channels = db.session.query(Channel).filter(Channel.name.in_(channel_names)).all()
+    db.session.commit()
+    return jsonify({"success": True, "message": f"Canales de {user.nombre} actualizados."})
 @app.route('/api/archivar-bloque', methods=['POST'])
 @login_required
 def archivar_bloque():
@@ -674,7 +680,6 @@ def desagrupar_bloque():
 # --- INICIO: Función de inicialización automática ---
 def initialize_database():
     """Crea la BD y los permisos si no existen."""
-    # Ahora que usamos un disco persistente, solo creamos la base de datos una vez.
     if not os.path.exists(DB_PATH):
         print("Primera ejecución: Inicializando base de datos...")
         with app.app_context():
@@ -693,14 +698,10 @@ def initialize_database():
                 perm = Permission.query.filter_by(name=perm_data['name']).first()
                 if not perm:
                     db.session.add(Permission(**perm_data))
-                else:
-                    perm.description = perm_data['description']
             db.session.commit()
-        print("✅ Base de datos y permisos inicializados.")
+            print("✅ Base de datos y permisos inicializados.")
 
 # --- Llamada a la función de inicialización ---
-# NOTA IMPORTANTE: Esta línea debe estar después de la definición de 'app'
-# y antes del bloque 'if __name__ == '__main__':'.
 initialize_database()
 
 # --- INICIO DE LA APLICACIÓN ---
