@@ -167,46 +167,63 @@ header.bg-dark {
 
 
 /* --- 4. Componentes Específicos de la App --- */
-
-/* Regla para la barra de desplazamiento de la tarjeta de notas */
-#notes-list-container.scrollable-card-list {
-  max-height: 300px; /* Altura máxima antes de que aparezca el scroll */
-  overflow-y: auto;  /* Muestra el scroll vertical cuando es necesario */
-  flex-shrink: 1;
-  min-height: 0;     /* Truco para que max-height funcione en un contenedor flex */
-}
-/* Añade esto al final de tu archivo static/css/styles.css */
-
-.btn-group .btn { 
-    display: flex; 
-    align-items: center; 
-}
-
-.toast-container { 
-    z-index: 1100; 
-}
-
-.copy-success { 
-    color: var(--success-color, #198754);
-}
-
-.favorite-btn .bi-star-fill { 
-    color: var(--warning-color, #ffc107);
-}
-/* Agrega este código al final de tu archivo static/css/styles.css */
-
 .scrollable-card-list {
   overflow-y: auto;
-  /* Puedes ajustar esta altura según tus necesidades */
   max-height: 350px; 
 }
-
-/* Estas reglas aseguran que los contenedores de las tarjetas 
-  usen todo el espacio vertical disponible, permitiendo que el 
-  scroll funcione correctamente.
-*/
 #hoy-orders-container, #manana-orders-container {
     display: flex;
     flex-direction: column;
     height: 100%;
+}
+
+/* --- 5. ESTILOS RESPONSIVOS PARA MÓVILES --- */
+@media (max-width: 767.98px) {
+    /* Oculta el encabezado de la tabla en móviles */
+    .responsive-table thead {
+        display: none;
+    }
+
+    /* Convierte la tabla en un layout de bloques (tarjetas) */
+    .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .responsive-table tr {
+        margin-bottom: 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: .5rem;
+        padding: 1rem;
+    }
+
+    .responsive-table td {
+        padding: .5rem 0;
+        border: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        text-align: right; /* Alinea el contenido de la celda a la derecha */
+    }
+
+    /* Añade etiquetas de columna como pseudo-elementos */
+    .responsive-table td::before {
+        content: attr(data-label);
+        font-weight: bold;
+        float: left;
+        text-align: left; /* Alinea la etiqueta a la izquierda */
+        margin-right: 1rem;
+        color: var(--text-secondary);
+    }
+
+    /* Estilos específicos para celdas de acciones y checkbox */
+    .responsive-table td:last-child,
+    .responsive-table td:first-child {
+        justify-content: center; /* Centra el botón de acción y el checkbox */
+    }
+    
+    .responsive-table td:last-child::before,
+    .responsive-table td:first-child::before {
+        display: none; /* Oculta la etiqueta para la columna de acciones/checkbox */
+    }
 }
