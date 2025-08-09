@@ -430,14 +430,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const initializeApp = async () => {
-        // Limpia cualquier caché de datos de una sesión o usuario anterior.
-        // Esto asegura que cada usuario empiece desde cero.
-        Object.keys(sessionStorage).forEach(key => {
-            if (key.startsWith('logisticaDataCache_')) {
-                sessionStorage.removeItem(key);
-            }
-        });
-
         try {
             const response = await fetch('/api/me');
             if (!response.ok) throw new Error('Usuario no autenticado');
