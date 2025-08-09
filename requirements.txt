@@ -11,4 +11,4 @@ numpy
 xlsxwriter
 gunicorn
 gevent
-
+psycopg2-binary

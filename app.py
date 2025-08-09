@@ -1,7 +1,7 @@
 import os
 import json
 import uuid
-import traceback # Importar para un mejor log de errores
+import traceback
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -17,7 +17,10 @@ import requests
 import base64
 import numpy as np
 
-# --- Modificación para Disco Persistente de Render ---
+# --- Modificación para usar PostgreSQL en Render ---
+# Ya no necesitamos el disco persistente de Render,
+# porque la base de datos ahora está en Supabase.
+# La ruta es solo para el sistema de archivos de sesión.
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -44,8 +47,8 @@ SCOPES = ["User.Read", "Sites.ReadWrite.All"]
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 REDIRECT_PATH = "/get_token" 
 
-# --- CONFIGURACIÓN DE LA BASE DE DATOS ---
-DB_PATH = os.path.join(DATA_DIR, "seguimiento_v2.db")
+# --- CONFIGURACIÓN DE LA BASE DE DATOS (ACTUALIZADA) ---
+# Ahora usamos una variable de entorno para conectar a la base de datos externa.
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
@@ -680,28 +683,31 @@ def desagrupar_bloque():
 # --- INICIO: Función de inicialización automática ---
 def initialize_database():
     """Crea la BD y los permisos si no existen."""
-    if not os.path.exists(DB_PATH):
-        print("Primera ejecución: Inicializando base de datos...")
-        with app.app_context():
-            db.create_all()
-            
-            # Lógica para inicializar permisos
-            permissions = [
-                {'name': 'update_status', 'description': 'Puede cambiar el estado de las órdenes'},
-                {'name': 'edit_notes', 'description': 'Puede editar y limpiar las notas de cualquier orden'},
-                {'name': 'archive_orders', 'description': 'Puede archivar y restaurar órdenes del historial'},
-                {'name': 'group_orders', 'description': 'Puede agrupar órdenes en bloques'},
-                {'name': 'manage_portals', 'description': 'Puede agregar, editar y eliminar portales'},
-                {'name': 'manage_users', 'description': 'Puede ver y cambiar permisos de otros usuarios'}
-            ]
-            for perm_data in permissions:
-                perm = Permission.query.filter_by(name=perm_data['name']).first()
-                if not perm:
-                    db.session.add(Permission(**perm_data))
-            db.session.commit()
-            print("✅ Base de datos y permisos inicializados.")
+    # Ahora que usamos una base de datos externa, creamos todas las tablas
+    # en cada arranque para asegurar que el esquema esté sincronizado.
+    print("Iniciando conexión a la base de datos externa y creando tablas...")
+    with app.app_context():
+        db.create_all()
+        
+        # Lógica para inicializar permisos
+        permissions = [
+            {'name': 'update_status', 'description': 'Puede cambiar el estado de las órdenes'},
+            {'name': 'edit_notes', 'description': 'Puede editar y limpiar las notas de cualquier orden'},
+            {'name': 'archive_orders', 'description': 'Puede archivar y restaurar órdenes del historial'},
+            {'name': 'group_orders', 'description': 'Puede agrupar órdenes en bloques'},
+            {'name': 'manage_portals', 'description': 'Puede agregar, editar y eliminar portales'},
+            {'name': 'manage_users', 'description': 'Puede ver y cambiar permisos de otros usuarios'}
+        ]
+        for perm_data in permissions:
+            perm = Permission.query.filter_by(name=perm_data['name']).first()
+            if not perm:
+                db.session.add(Permission(**perm_data))
+        db.session.commit()
+        print("✅ Base de datos y permisos inicializados.")
 
 # --- Llamada a la función de inicialización ---
+# NOTA IMPORTANTE: Esta línea debe estar después de la definición de 'app'
+# y antes del bloque 'if __name__ == '__main__':'.
 initialize_database()
 
 # --- INICIO DE LA APLICACIÓN ---
