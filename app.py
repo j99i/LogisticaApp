@@ -181,7 +181,8 @@ def init_permissions_command():
         {'name': 'archive_orders', 'description': 'Puede archivar y restaurar órdenes del historial'},
         {'name': 'group_orders', 'description': 'Puede agrupar órdenes en bloques'},
         {'name': 'manage_portals', 'description': 'Puede agregar, editar y eliminar portales'},
-        {'name': 'manage_users', 'description': 'Puede ver y cambiar permisos de otros usuarios'}
+        {'name': 'manage_users', 'description': 'Puede ver y cambiar permisos de otros usuarios'},
+        {'name': 'view_portals', 'description': 'Puede ver y acceder a la página de Portales'}
     ]
     with app.app_context():
         for perm_data in permissions:
@@ -191,7 +192,7 @@ def init_permissions_command():
             else:
                 perm.description = perm_data['description']
         db.session.commit()
-    print('✅ Permisos inicializados y actualizados con éxito en español.')
+    print('✅ Permisos inicializados y actualizados con éxito.')
 
 @app.cli.command('assign-role')
 def assign_role_command(email, role):
@@ -249,9 +250,7 @@ def obtener_datos_sharepoint_con_auth():
     print("✅ Archivo de Excel leído.")
     df.columns = df.columns.str.strip()
 
-    # Normalizamos el nombre de la columna "Localidad destino" para evitar errores
     for col in df.columns:
-        # Comparamos una versión normalizada (sin espacios, en minúsculas)
         if ''.join(col.split()).lower() == 'localidaddestino':
             df.rename(columns={col: 'Localidad destino'}, inplace=True)
             print(f"✅ Columna '{col}' estandarizada a 'Localidad destino'.")
@@ -278,7 +277,6 @@ def sincronizar_y_obtener_datos_completos(canal_filtro=None):
         for index, row in df_excel_activos.iterrows():
             oc_str = str(row.get('Orden de compra', '')).strip()
 
-            # Lógica para crear Remisiones usando el SO
             if not oc_str or oc_str.lower() == 'nan':
                 so_str = str(row.get('SO', '')).strip()
                 if so_str and so_str.lower() != 'nan':
@@ -392,11 +390,15 @@ def me():
 @app.route('/monitoreo-portales')
 @login_required
 def monitoreo_portales():
+    if not current_user.has_permission('view_portals'):
+        abort(403)
     return render_template('monitoreo_portales.html')
 
 @app.route('/api/portales', methods=['GET'])
 @login_required
 def get_portales():
+    if not current_user.has_permission('view_portals'):
+        abort(403, "No tienes permiso para ver los portales.")
     portales = load_portales_data()
     return jsonify(portales)
 
@@ -516,35 +518,27 @@ def get_logistica_data():
     try:
         requested_channel = request.args.get('canal')
 
-        # 1. Sincronizamos y ahora sí capturamos la lista de canales del Excel
-        #    Pasamos None para que la función de sincronización no filtre nada todavía.
         df_filtrado, all_excel_channels = sincronizar_y_obtener_datos_completos(None)
 
-        # 2. Determinamos qué canales debe ver el usuario en su filtro
         if current_user.rol == 'super':
-            # El super admin puede ver todos los canales que vengan del archivo de Excel
             channels_for_user = all_excel_channels
         else:
-            # Un usuario normal solo ve la intersección de sus canales permitidos y los que existen en el Excel
             allowed_user_channels = {c.name for c in current_user.allowed_channels}
             channels_for_user = sorted([ch for ch in all_excel_channels if ch in allowed_user_channels])
 
-        # Si un usuario normal no tiene canales asignados, se devuelve una respuesta vacía
         if not channels_for_user and current_user.rol != 'super':
             return jsonify({"data": [], "channels": [], "loaded_channel": None})
-
-        # 3. Determinamos qué datos se van a cargar en la tabla principal
+        
+        if current_user.rol != 'super':
+            df_filtrado = df_filtrado[df_filtrado['Canal'].isin(channels_for_user)]
+        
         if requested_channel and (requested_channel in channels_for_user or (requested_channel == 'ALL' and current_user.rol == 'super')):
-            # Si se pide un canal específico (y el usuario tiene permiso), se usa ese
             channel_to_load = requested_channel
         elif current_user.rol == 'super':
-            # Si no se pide nada, el super admin ve 'Todos los Canales' por defecto
             channel_to_load = 'ALL'
         else:
-            # Un usuario normal ve su primer canal asignado por defecto
             channel_to_load = channels_for_user[0] if channels_for_user else None
         
-        # 4. Si el canal a cargar NO es 'ALL', filtramos el DataFrame que ya teníamos en memoria
         if channel_to_load and channel_to_load.upper() != 'ALL':
              df_filtrado = df_filtrado[df_filtrado['Canal'].fillna('').str.strip().str.title() == channel_to_load.title()]
 
@@ -762,7 +756,25 @@ def desagrupar_bloque():
     db.session.commit()
     return jsonify({"success": True, "message": "Las órdenes han sido desagrupadas."})
 
-# --- INICIO: Función de inicialización automática ---
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@login_required
+def delete_user(user_id):
+    if not current_user.rol == 'super':
+        abort(403, "No tienes permiso para realizar esta acción.")
+    
+    user_to_delete = User.query.get_or_404(user_id)
+    
+    if user_to_delete.rol == 'super':
+        return jsonify({"success": False, "error": "No se puede eliminar a un superadministrador."}), 400
+        
+    if user_to_delete.id == current_user.id:
+        return jsonify({"success": False, "error": "No te puedes eliminar a ti mismo."}), 400
+
+    db.session.delete(user_to_delete)
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": f"Usuario {user_to_delete.nombre} eliminado con éxito."})
+
 def initialize_database():
     """Crea la BD y los permisos si no existen."""
     if not os.path.exists(DB_PATH):
@@ -770,14 +782,14 @@ def initialize_database():
         with app.app_context():
             db.create_all()
             
-            # Lógica para inicializar permisos
             permissions = [
                 {'name': 'update_status', 'description': 'Puede cambiar el estado de las órdenes'},
                 {'name': 'edit_notes', 'description': 'Puede editar y limpiar las notas de cualquier orden'},
                 {'name': 'archive_orders', 'description': 'Puede archivar y restaurar órdenes del historial'},
                 {'name': 'group_orders', 'description': 'Puede agrupar órdenes en bloques'},
                 {'name': 'manage_portals', 'description': 'Puede agregar, editar y eliminar portales'},
-                {'name': 'manage_users', 'description': 'Puede ver y cambiar permisos de otros usuarios'}
+                {'name': 'manage_users', 'description': 'Puede ver y cambiar permisos de otros usuarios'},
+                {'name': 'view_portals', 'description': 'Puede ver y acceder a la página de Portales'}
             ]
             for perm_data in permissions:
                 perm = Permission.query.filter_by(name=perm_data['name']).first()
@@ -786,10 +798,7 @@ def initialize_database():
             db.session.commit()
             print("✅ Base de datos y permisos inicializados.")
 
-# --- Llamada a la función de inicialización ---
 initialize_database()
 
-# --- INICIO DE LA APLICACIÓN ---
 if __name__ == '__main__':
-    # Este bloque solo se ejecuta en desarrollo local
     app.run(debug=True, port=5001)

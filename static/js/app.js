@@ -332,19 +332,15 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAllViews(filteredData);
     };
 
-    // ===== INICIO: FUNCIÓN CORREGIDA PARA FILTRO DE CANALES =====
     const populateChannelFilter = (channels) => {
         if (!channelFilter) return;
 
-        // 1. Limpiamos las opciones existentes
         channelFilter.innerHTML = '';
 
-        // 2. Si es super admin, añadimos la opción de "Todos" primero
         if (currentUserRole === 'super') {
             channelFilter.add(new Option("Todos los Canales", "ALL"));
         }
 
-        // 3. Si no hay canales, mostramos un mensaje apropiado
         if (!channels || channels.length === 0) {
             if (currentUserRole !== 'super') {
                 channelFilter.add(new Option("No hay canales asignados", ""));
@@ -352,14 +348,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 4. Añadimos todos los canales recibidos del servidor
         channels.forEach(channel => {
             const option = new Option(channel, channel);
             channelFilter.add(option);
         });
     };
-    // ===== FIN: FUNCIÓN CORREGIDA =====
-
+    
     const saveData = async (url, body) => {
         loadingSpinner.classList.remove('d-none');
         try {
@@ -443,11 +437,27 @@ document.addEventListener('DOMContentLoaded', () => {
             userPermissions = new Set(user.permissions);
             currentUserRole = user.rol;
             document.getElementById('user-info').textContent = `${user.nombre} (${user.rol})`;
+            
             if (userPermissions.has('manage_users')) {
                 const adminButtonContainer = document.getElementById('admin-button-container');
-                const adminUrl = '/admin/users';
-                adminButtonContainer.innerHTML = `<li><a class="dropdown-item" href="${adminUrl}"><i class="bi bi-people-fill me-2"></i>Admin Usuarios</a></li>`;
+                if(adminButtonContainer) {
+                   const adminUrl = '/admin/users';
+                   adminButtonContainer.innerHTML = `<a class="dropdown-item" href="${adminUrl}"><i class="bi bi-people-fill me-2"></i>Admin Usuarios</a>`;
+                }
+            } else {
+                 const adminButtonContainer = document.getElementById('admin-button-container');
+                 if(adminButtonContainer) adminButtonContainer.classList.add('d-none');
             }
+            
+            const portalsButtonContainer = document.getElementById('portals-button-container');
+            if (portalsButtonContainer) {
+                if (userPermissions.has('view_portals')) {
+                    portalsButtonContainer.classList.remove('d-none');
+                } else {
+                    portalsButtonContainer.classList.add('d-none');
+                }
+            }
+
             updateGroupButtonState();
             fetchData();
         } catch (error) {
@@ -784,6 +794,5 @@ document.addEventListener('DOMContentLoaded', () => {
     if (hoyOrdersContainer) hoyOrdersContainer.addEventListener('click', handleSummaryTableClick);
     if (mananaOrdersContainer) mananaOrdersContainer.addEventListener('click', handleSummaryTableClick);
     
-    // --- INICIO DE LA APLICACIÓN ---
     initializeApp();
 });
