@@ -40,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let fullData = [];
     let currentOrder = null;
     let selectedOrders = new Set();
-    const CACHE_KEY_PREFIX = 'logisticaDataCache_';
 
     // --- FUNCIONES AUXILIARES ---
     const parseDeliveryDateTime = (dateStr, timeStr) => {
@@ -61,9 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const formatCurrency = (value) => `$${(value || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-    // --- INICIO: NUEVA FUNCIÓN PARA FORMATEAR FECHA VISUAL ---
     const formatDisplayDate = (isoDate) => {
-        // Recibe AAAA-MM-DD y devuelve DD/MM/AAAA
         if (!isoDate || isoDate === 'Por Asignar') {
             return 'Por Asignar';
         }
@@ -71,10 +68,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const [year, month, day] = isoDate.split('-');
             return `${day}/${month}/${year}`;
         } catch (e) {
-            return isoDate; // Devuelve la fecha original si hay un error
+            return isoDate;
         }
     };
-    // --- FIN: NUEVA FUNCIÓN PARA FORMATEAR FECHA VISUAL ---
 
     // --- FUNCIONES DE RENDERIZADO ---
     const updateGroupButtonState = () => {
@@ -293,12 +289,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const applyFilters = () => {
         const searchTerm = searchInput.value.toLowerCase();
         const selectedClient = clientFilter.value;
+        const selectedChannel = channelFilter.value;
+
         const filteredData = fullData.filter(item => {
             const matchesClient = !selectedClient || item.Cliente === selectedClient;
+            const matchesChannel = !selectedChannel || selectedChannel === 'ALL' || item.Canal === selectedChannel;
             const searchIn = `${item['Orden de compra'] || ''} ${item.SO || ''} ${item.Factura || ''}`.toLowerCase();
             const matchesSearch = !searchTerm || searchIn.includes(searchTerm);
-            return matchesClient && matchesSearch;
+            return matchesClient && matchesSearch && matchesChannel;
         });
+        
         if (searchTerm.trim() && filteredData.length > 0) {
             const firstResult = filteredData[0];
             let targetTabId = null;
@@ -322,13 +322,13 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAllViews(filteredData);
     };
 
-    const populateChannelFilter = (channels) => {
-        if (!channelFilter) return;
-        channelFilter.innerHTML = '';
-        if (currentUserRole === 'super') {
-            channelFilter.innerHTML = '<option value="ALL">Todos los Canales</option>';
-        }
-        channels.forEach(channel => {
+    const populateFilters = (data, allChannels) => {
+        const uniqueClients = [...new Set(data.map(item => item.Cliente).filter(c => c))];
+        clientFilter.innerHTML = '<option value="">Todos los Clientes</option>';
+        uniqueClients.sort().forEach(c => clientFilter.add(new Option(c, c)));
+        
+        channelFilter.innerHTML = '<option value="ALL">Todos los Canales</option>';
+        allChannels.forEach(channel => {
             const option = new Option(channel, channel);
             channelFilter.add(option);
         });
@@ -345,52 +345,39 @@ document.addEventListener('DOMContentLoaded', () => {
             return await response.json();
         } catch (error) {
             console.error(error);
-            alert(`Falló la operación: ${error.message}`);
+            Swal.fire('Error', `Falló la operación: ${error.message}`, 'error');
         } finally {
             loadingSpinner.classList.add('d-none');
         }
     };
 
-    const initializeUI = (data) => {
-        const uniqueClients = [...new Set(data.map(item => item.Cliente).filter(c => c))];
-        clientFilter.innerHTML = '<option value="">Todos los Clientes</option>';
-        uniqueClients.sort().forEach(c => clientFilter.add(new Option(c, c)));
-        applyFilters();
-    };
-
-    const fetchData = async (forceRefresh = false, channel = null) => {
-        const cacheKeyChannel = channel || 'initial';
-        const CACHE_KEY = `${CACHE_KEY_PREFIX}${cacheKeyChannel}`;
-        const processDataAndInitialize = (data) => {
-            data.forEach(order => order.Prioridad = calculatePriority(order['Fecha de entrega']));
-            fullData = data;
-            if (channel) {
-                sessionStorage.setItem(CACHE_KEY, JSON.stringify(fullData));
-            }
-            initializeUI(fullData);
-        };
+    const fetchData = async (forceSync = false) => {
         loadingSpinner.classList.remove('d-none');
+        const url = forceSync ? '/api/logistica/sincronizar' : '/api/logistica/datos';
+        const method = forceSync ? 'POST' : 'GET';
+        
         try {
-            const params = new URLSearchParams();
-            if (channel) {
-                params.append('canal', channel);
+            if (forceSync) {
+                await fetch(url, { method });
             }
-            const response = await fetch(`/api/logistica/datos?${params.toString()}`);
-            if (!response.ok) {
-                const err = await response.json();
+            const dataResponse = await fetch('/api/logistica/datos');
+            if (!dataResponse.ok) {
+                const err = await dataResponse.json();
                 throw new Error(err.error || 'Error del servidor');
             }
-            const responseData = await response.json();
-            populateChannelFilter(responseData.channels);
-            channelFilter.value = responseData.loaded_channel;
-            selectedOrders.clear();
-            updateGroupButtonState();
-            processDataAndInitialize(responseData.data);
+            const responseData = await dataResponse.json();
+            
+            responseData.data.forEach(order => order.Prioridad = calculatePriority(order['Fecha de entrega']));
+            fullData = responseData.data;
+
+            populateFilters(fullData, responseData.channels);
+            applyFilters();
+            
             document.getElementById('app-loader').classList.add('d-none');
             document.getElementById('app-container').classList.remove('d-none');
         } catch (error) {
             console.error("Error al cargar los datos:", error);
-            alert(`Error al cargar los datos: ${error.message}`);
+            Swal.fire('Error de Carga', `No se pudieron cargar los datos: ${error.message}`, 'error');
             document.getElementById('app-loader').classList.add('d-none');
         } finally {
             loadingSpinner.classList.add('d-none');
@@ -405,11 +392,13 @@ document.addEventListener('DOMContentLoaded', () => {
             userPermissions = new Set(user.permissions);
             currentUserRole = user.rol;
             document.getElementById('user-info').textContent = `${user.nombre} (${user.rol})`;
-            if (userPermissions.has('manage_users')) {
-                const adminButtonContainer = document.getElementById('admin-button-container');
+            
+            if (user.rol === 'super' || userPermissions.has('manage_users')) {
+                const adminButtonContainer = document.getElementById('admin-button-container-mobile');
                 const adminUrl = '/admin/users';
-                adminButtonContainer.innerHTML = `<a href="${adminUrl}" class="btn btn-sm btn-warning" title="Administrar Usuarios"><i class="bi bi-people-fill"></i> Admin</a>`;
+                adminButtonContainer.innerHTML = `<li><a class="dropdown-item" href="${adminUrl}"><i class="bi bi-people-fill me-2"></i>Admin. Usuarios</a></li><li><hr class="dropdown-divider"></li>`;
             }
+            
             updateGroupButtonState();
             fetchData();
         } catch (error) {
@@ -473,7 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await saveData('/api/desagrupar-bloque', { ocs: ocsToUngroup });
                 if (response && response.success) {
                     Swal.fire('¡Éxito!', 'Las órdenes han sido desagrupadas.', 'success');
-                    fetchData(true, channelFilter.value || 'ALL');
+                    fetchData(true);
                 }
             }
         });
@@ -510,16 +499,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- EVENT LISTENERS ---
     if (searchInput) searchInput.addEventListener('input', applyFilters);
     if (clientFilter) clientFilter.addEventListener('change', applyFilters);
-    if (channelFilter) channelFilter.addEventListener('change', () => {
-        const selectedChannel = channelFilter.value;
-        if (selectedChannel) {
-            fetchData(false, selectedChannel);
-        }
-    });
+    if (channelFilter) channelFilter.addEventListener('change', applyFilters);
+    
     if (refreshBtn) refreshBtn.addEventListener('click', () => {
-        const currentChannel = channelFilter.value || null;
-        fetchData(true, currentChannel);
+        Swal.fire({
+            title: 'Actualizando Datos',
+            text: 'Sincronizando con el archivo de SharePoint...',
+            didOpen: () => {
+                Swal.showLoading();
+                fetchData(true).then(() => {
+                    Swal.close();
+                });
+            },
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+        });
     });
+
     const navTabContent = document.getElementById('nav-tabContent');
     if (navTabContent) {
         navTabContent.addEventListener('click', e => {
@@ -538,20 +534,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const releaseBtn = e.target.closest('.release-btn');
             if (releaseBtn) {
                 const historialId = releaseBtn.dataset.historialId;
-                if (confirm('¿Estás seguro de que quieres restaurar esta orden al seguimiento activo?')) {
-                    fetch(`/api/orden/liberar/${historialId}`, { method: 'POST' }).then(response => response.json()).then(result => {
-                        if (result.success) {
-                            alert('¡Orden restaurada!');
-                            releaseBtn.closest('tr').remove();
-                            fetchData(true, channelFilter.value || 'ALL');
-                        } else {
-                            alert(`Error: ${result.error || 'No se pudo restaurar la orden.'}`);
-                        }
-                    }).catch(err => {
-                        console.error('Error al restaurar:', err);
-                        alert('Falló la conexión al intentar restaurar la orden.');
-                    });
-                }
+                Swal.fire({
+                    title: '¿Restaurar Orden?',
+                    text: '¿Estás seguro de que quieres restaurar esta orden al seguimiento activo?',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, restaurar',
+                    cancelButtonText: 'No'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        fetch(`/api/orden/liberar/${historialId}`, { method: 'POST' }).then(response => response.json()).then(result => {
+                            if (result.success) {
+                                Swal.fire('¡Restaurada!', 'La orden ha vuelto al seguimiento activo.', 'success');
+                                fetchData(true);
+                            } else {
+                                Swal.fire('Error', result.error || 'No se pudo restaurar la orden.', 'error');
+                            }
+                        }).catch(err => {
+                            console.error('Error al restaurar:', err);
+                            Swal.fire('Error de Conexión', 'Falló la conexión al intentar restaurar la orden.', 'error');
+                        });
+                    }
+                });
             }
         });
         navTabContent.addEventListener('change', e => {
@@ -566,6 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
     if (kpiContainer) kpiContainer.addEventListener('click', async (e) => {
         const noteLink = e.target.closest('a.text-decoration-none');
         if (noteLink) {
@@ -579,31 +584,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const completeBtn = e.target.closest('.complete-note-btn');
         if (completeBtn) {
             const orderId = completeBtn.dataset.oc;
-            if (confirm(`¿Estás seguro de que quieres limpiar las notas de la orden ${orderId}? Esta acción no se puede deshacer.`)) {
-                const result = await saveData('/api/orden/clear-notes', { orden_compra: orderId });
-                if (result && result.success) {
-                    const orderInCache = fullData.find(o => o['Orden de compra'] === orderId);
-                    if (orderInCache) {
-                        orderInCache.Notas = '';
-                    }
-                    sessionStorage.setItem(`${CACHE_KEY_PREFIX}${channelFilter.value || 'ALL'}`, JSON.stringify(fullData));
-                    applyFilters();
-                }
+            const result = await saveData('/api/orden/clear-notes', { orden_compra: orderId });
+            if (result && result.success) {
+                fetchData();
             }
         }
     });
+
     const saveNotesBtn = document.getElementById('save-notes-btn');
     if (saveNotesBtn) saveNotesBtn.addEventListener('click', async () => {
         if (currentOrder) {
-            currentOrder.Notas = document.getElementById('modal-notas').value;
-            await saveData('/api/actualizar-notas', { orden_compra: currentOrder['Orden de compra'], notas: currentOrder.Notas });
-            const cachedOrder = fullData.find(o => o['Orden de compra'] === currentOrder['Orden de compra']);
-            if (cachedOrder) cachedOrder.Notas = currentOrder.Notas;
-            sessionStorage.setItem(`${CACHE_KEY_PREFIX}${channelFilter.value || 'ALL'}`, JSON.stringify(fullData));
-            applyFilters();
-            alert('Notas guardadas.');
+            const newNotes = document.getElementById('modal-notas').value;
+            const result = await saveData('/api/actualizar-notas', { orden_compra: currentOrder['Orden de compra'], notas: newNotes });
+            if (result && result.success) {
+                currentOrder.Notas = newNotes;
+                applyFilters();
+                Swal.fire('¡Guardado!', 'Las notas han sido actualizadas.', 'success');
+            }
         }
     });
+
     const checklistContainer = document.getElementById('modal-checklist-container');
     if(checklistContainer) checklistContainer.addEventListener('change', async (e) => {
         if (e.target.matches('.form-check-input')) {
@@ -615,9 +615,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tarea = cachedOrder.Tareas.find(t => t.id === tareaId);
                 if (tarea) tarea.completado = completado;
             }
-            sessionStorage.setItem(`${CACHE_KEY_PREFIX}${channelFilter.value || 'ALL'}`, JSON.stringify(fullData));
         }
     });
+
     const detailsModalEl = document.getElementById('detailsModal');
     if (detailsModalEl) {
         detailsModalEl.addEventListener('hidden.bs.modal', () => {
@@ -628,48 +628,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const nuevoEstado = e.target.dataset.estado;
                 const result = await saveData('/api/actualizar-estado', { orden_compra: currentOrder['Orden de compra'], nuevo_estado: nuevoEstado });
                 if (result && result.success) {
-                    result.updated_ocs.forEach(oc => {
-                        const orderToUpdate = fullData.find(o => o['Orden de compra'] === oc);
-                        if (orderToUpdate) {
-                            orderToUpdate.Estado = nuevoEstado;
-                        }
-                    });
-                    currentOrder.Estado = nuevoEstado;
-                    sessionStorage.setItem(`${CACHE_KEY_PREFIX}${channelFilter.value || 'ALL'}`, JSON.stringify(fullData));
-                    applyFilters();
+                    fetchData();
                     renderStatusButtons(nuevoEstado);
                 }
             }
             if (e.target.id === 'archive-btn') {
-                const archiveOrder = async (orderToArchive) => {
-                    if (orderToArchive.bloque_id) {
-                        const blockOrders = fullData.filter(o => o.bloque_id === orderToArchive.bloque_id);
-                        const result = await saveData('/api/archivar-bloque', { orders_data: blockOrders });
-                        if (result && result.success) {
-                            const ocsToArchive = new Set(blockOrders.map(o => o['Orden de compra']));
-                            fullData = fullData.filter(order => !ocsToArchive.has(order['Orden de compra']));
-                            return true;
-                        }
-                    } else {
-                        const result = await saveData('/api/archivar-orden', { ...orderToArchive });
-                        if (result && result.success) {
-                            fullData = fullData.filter(order => order['Orden de compra'] !== orderToArchive['Orden de compra']);
-                            return true;
-                        }
-                    }
-                    return false;
-                };
-                const wasArchived = await archiveOrder(currentOrder);
-                if (wasArchived) {
-                    sessionStorage.setItem(`${CACHE_KEY_PREFIX}${channelFilter.value || 'ALL'}`, JSON.stringify(fullData));
-                    applyFilters();
+                const result = await saveData('/api/archivar-orden', { ...currentOrder });
+                if (result && result.success) {
+                    fetchData();
                     const modalInstance = bootstrap.Modal.getInstance(detailsModalEl);
                     if (modalInstance) modalInstance.hide();
-                    alert('Operación de archivado completada.');
+                    Swal.fire('Archivada', 'La orden se movió al historial.', 'success');
                 }
             }
         });
     }
+
     const historyTabEl = document.querySelector('button[data-bs-target="#nav-history"]');
     if(historyTabEl) {
         historyTabEl.addEventListener('show.bs.tab', async () => {
@@ -688,8 +662,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
     const historyFilterBtn = document.getElementById('history-filter-btn');
     if(historyFilterBtn) historyFilterBtn.addEventListener('click', cargarHistorial);
+    
     const historyDownloadBtn = document.getElementById('history-download-btn');
     if(historyDownloadBtn) {
         historyDownloadBtn.addEventListener('click', () => {
@@ -702,6 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.location.href = `/api/historial/descargar?${params.toString()}`;
         });
     }
+
     if (groupBtn) {
         groupBtn.addEventListener('click', async () => {
             const count = selectedOrders.size;
@@ -709,10 +686,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const ocsToGroup = Array.from(selectedOrders);
             const result = await saveData('/api/crear-bloque', { ordenes_compra: ocsToGroup });
             if (result && result.success) {
-                alert(result.mensaje || 'Órdenes agrupadas con éxito.');
-                selectedOrders.clear();
-                updateGroupButtonState();
-                fetchData(true, channelFilter.value || 'ALL');
+                Swal.fire('¡Agrupadas!', result.mensaje || 'Órdenes agrupadas con éxito.', 'success');
+                fetchData(true);
             }
         });
     }
