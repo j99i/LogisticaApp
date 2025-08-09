@@ -46,7 +46,7 @@ REDIRECT_PATH = "/get_token"
 
 # --- CONFIGURACIÓN DE LA BASE DE DATOS ---
 DB_PATH = os.path.join(DATA_DIR, "seguimiento_v2.db")
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
