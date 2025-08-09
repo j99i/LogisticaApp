@@ -49,7 +49,8 @@ REDIRECT_PATH = "/get_token"
 
 # --- CONFIGURACIÓN DE LA BASE DE DATOS (ACTUALIZADA) ---
 # Ahora usamos una variable de entorno para conectar a la base de datos externa.
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+# Vuelve a usar el archivo SQLite local.
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
