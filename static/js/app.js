@@ -332,17 +332,33 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAllViews(filteredData);
     };
 
+    // ===== INICIO: FUNCIÓN CORREGIDA PARA FILTRO DE CANALES =====
     const populateChannelFilter = (channels) => {
         if (!channelFilter) return;
+
+        // 1. Limpiamos las opciones existentes
         channelFilter.innerHTML = '';
+
+        // 2. Si es super admin, añadimos la opción de "Todos" primero
         if (currentUserRole === 'super') {
-            channelFilter.innerHTML = '<option value="ALL">Todos los Canales</option>';
+            channelFilter.add(new Option("Todos los Canales", "ALL"));
         }
+
+        // 3. Si no hay canales, mostramos un mensaje apropiado
+        if (!channels || channels.length === 0) {
+            if (currentUserRole !== 'super') {
+                channelFilter.add(new Option("No hay canales asignados", ""));
+            }
+            return;
+        }
+
+        // 4. Añadimos todos los canales recibidos del servidor
         channels.forEach(channel => {
             const option = new Option(channel, channel);
             channelFilter.add(option);
         });
     };
+    // ===== FIN: FUNCIÓN CORREGIDA =====
 
     const saveData = async (url, body) => {
         loadingSpinner.classList.remove('d-none');
