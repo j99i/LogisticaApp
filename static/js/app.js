@@ -61,9 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const formatCurrency = (value) => `$${(value || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-    // --- INICIO: NUEVA FUNCIÓN PARA FORMATEAR FECHA VISUAL ---
     const formatDisplayDate = (isoDate) => {
-        // Recibe AAAA-MM-DD y devuelve DD/MM/AAAA
         if (!isoDate || isoDate === 'Por Asignar') {
             return 'Por Asignar';
         }
@@ -71,10 +69,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const [year, month, day] = isoDate.split('-');
             return `${day}/${month}/${year}`;
         } catch (e) {
-            return isoDate; // Devuelve la fecha original si hay un error
+            return isoDate;
         }
     };
-    // --- FIN: NUEVA FUNCIÓN PARA FORMATEAR FECHA VISUAL ---
 
     // --- FUNCIONES DE RENDERIZADO ---
     const updateGroupButtonState = () => {
@@ -111,19 +108,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const map = { 'Pendiente': 'bg-secondary', 'En Preparacion': 'bg-warning text-dark', 'En Ruta': 'bg-primary', 'Entregado': 'bg-success', 'Rechazo parcial': 'bg-danger', 'Rechazo total': 'bg-dark text-danger border border-danger' };
         return `<span class="badge ${map[e] || 'bg-light text-dark'}">${e}</span>`;
     };
-
+    
     const renderTableRow = (row, isHistory = false) => {
         const tr = document.createElement('tr');
         if (isHistory) {
-            const actionCell = userPermissions.has('archive_orders') ? `<td class="text-center"><button class="btn btn-sm btn-outline-success release-btn" title="Liberar Orden" data-historial-id="${row.id}"><i class="bi bi-arrow-up-right-circle"></i></button></td>` : '<td></td>';
-            tr.innerHTML = `<td>${row['Orden de compra']}</td><td>${row.Cliente || 'N/A'}</td><td>${formatDisplayDate(row['Fecha Entrega'])}</td><td>${renderBadge(row['Estado Final'])}</td>${actionCell}`;
+            const actionCell = userPermissions.has('archive_orders') ? `<td data-label="Acciones" class="text-center"><button class="btn btn-sm btn-outline-success release-btn" title="Liberar Orden" data-historial-id="${row.id}"><i class="bi bi-arrow-up-right-circle"></i></button></td>` : '<td data-label="Acciones"></td>';
+            tr.innerHTML = `
+                <td data-label="Orden de Compra">${row['Orden de compra']}</td>
+                <td data-label="Cliente">${row.Cliente || 'N/A'}</td>
+                <td data-label="Fecha Entrega">${formatDisplayDate(row['Fecha Entrega'])}</td>
+                <td data-label="Estado Final">${renderBadge(row['Estado Final'])}</td>
+                ${actionCell}`;
         } else {
             tr.className = ['Urgente', 'Vencida'].includes(row.Prioridad) ? 'table-danger-subtle' : '';
             const isSelected = selectedOrders.has(row['Orden de compra']);
             const checkboxCell = userPermissions.has('group_orders') ? `<td class="text-center"><input class="form-check-input order-checkbox" type="checkbox" data-oc="${row['Orden de compra']}" ${isSelected ? 'checked' : ''}></td>` : '<td></td>';
             const blockIcon = row.bloque_id ? `<i class="bi bi-collection-fill text-info me-2" title="Orden en bloque. ID: ${row.bloque_id}"></i>` : '';
-            const actionCell = userPermissions.has('update_status') || userPermissions.has('edit_notes') || userPermissions.has('archive_orders') ? `<td class="text-center"><button class="btn btn-sm btn-outline-primary action-btn" data-oc="${row['Orden de compra']}">Gestionar</button></td>` : '<td></td>';
-            tr.innerHTML = `${checkboxCell}<td class="text-center">${renderPriority(row.Prioridad)}</td><td>${blockIcon}${row['Orden de compra']}</td><td>${row.Cliente || 'N/A'}</td><td>${formatDisplayDate(row['Fecha de entrega'])}</td><td>${row.Horario || 'N/D'}</td><td>${renderBadge(row.Estado)}</td>${actionCell}`;
+            const actionCell = userPermissions.has('update_status') || userPermissions.has('edit_notes') || userPermissions.has('archive_orders') ? `<td data-label="Acciones" class="text-center"><button class="btn btn-sm btn-outline-primary action-btn" data-oc="${row['Orden de compra']}">Gestionar</button></td>` : '<td data-label="Acciones"></td>';
+            tr.innerHTML = `
+                ${checkboxCell}
+                <td data-label="Prioridad" class="text-center">${renderPriority(row.Prioridad)}</td>
+                <td data-label="Orden de Compra">${blockIcon}${row['Orden de compra']}</td>
+                <td data-label="Cliente">${row.Cliente || 'N/A'}</td>
+                <td data-label="Fecha Entrega">${formatDisplayDate(row['Fecha de entrega'])}</td>
+                <td data-label="Horario">${row.Horario || 'N/D'}</td>
+                <td data-label="Estado">${renderBadge(row.Estado)}</td>
+                ${actionCell}`;
         }
         return tr;
     };
@@ -361,14 +371,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const fetchData = async (forceRefresh = false, channel = null) => {
         const cacheKeyChannel = channel || 'initial';
         const CACHE_KEY = `${CACHE_KEY_PREFIX}${cacheKeyChannel}`;
+        
         const processDataAndInitialize = (data) => {
             data.forEach(order => order.Prioridad = calculatePriority(order['Fecha de entrega']));
             fullData = data;
-            if (channel) {
-                sessionStorage.setItem(CACHE_KEY, JSON.stringify(fullData));
-            }
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(fullData));
             initializeUI(fullData);
         };
+
+        if (!forceRefresh) {
+            const cachedData = sessionStorage.getItem(CACHE_KEY);
+            if (cachedData) {
+                console.log("Datos cargados desde la caché. ¡Navegación instantánea!");
+                const data = JSON.parse(cachedData);
+                processDataAndInitialize(data);
+                document.getElementById('app-loader').classList.add('d-none');
+                document.getElementById('app-container').classList.remove('d-none');
+                return;
+            }
+        }
+
         loadingSpinner.classList.remove('d-none');
         try {
             const params = new URLSearchParams();
@@ -408,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (userPermissions.has('manage_users')) {
                 const adminButtonContainer = document.getElementById('admin-button-container');
                 const adminUrl = '/admin/users';
-                adminButtonContainer.innerHTML = `<a href="${adminUrl}" class="btn btn-sm btn-warning" title="Administrar Usuarios"><i class="bi bi-people-fill"></i> Admin</a>`;
+                adminButtonContainer.innerHTML = `<li><a class="dropdown-item" href="${adminUrl}"><i class="bi bi-people-fill me-2"></i>Admin Usuarios</a></li>`;
             }
             updateGroupButtonState();
             fetchData();
@@ -708,11 +730,26 @@ document.addEventListener('DOMContentLoaded', () => {
             if (count < 2) return;
             const ocsToGroup = Array.from(selectedOrders);
             const result = await saveData('/api/crear-bloque', { ordenes_compra: ocsToGroup });
+            
             if (result && result.success) {
-                alert(result.mensaje || 'Órdenes agrupadas con éxito.');
+                Swal.fire({
+                    icon: 'success',
+                    title: '¡Éxito!',
+                    text: result.mensaje || 'Órdenes agrupadas con éxito.',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+
+                result.ordenes_agrupadas.forEach(oc => {
+                    const orderInFullData = fullData.find(order => order['Orden de compra'] === oc);
+                    if (orderInFullData) {
+                        orderInFullData.bloque_id = result.bloque_id;
+                    }
+                });
+
                 selectedOrders.clear();
                 updateGroupButtonState();
-                fetchData(true, channelFilter.value || 'ALL');
+                applyFilters();
             }
         });
     }
